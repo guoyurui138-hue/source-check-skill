@@ -5,11 +5,11 @@ description: Verify every external claim in your output via multi-criteria scien
 
 # source-check
 
-External claims are verified by multi-criteria verification routed by claim type. Every claim gets verified — no "skip" pathway. Claims that *appear* unverifiable (subjective, future, private) get *different criteria*, not skip.
+External claims are verified by **multi-criteria scientific verification** routed by claim type. Every claim gets verified — there is no "this is unverifiable, skip" pathway. Single-criterion demarcation (e.g., Popper falsifiability alone) is known to fail (Hansson SEP §4; Pigliucci & Boudry 2013); the current consensus is multi-criteria assessment with criteria appropriate to the claim's type.
 
 ## Step 0 — Classify claim type (route, do NOT skip)
 
-For each external claim, identify its type. Every type routes to a specific verifier.
+For each external claim, identify its type. Every type routes to a specific verifier; no skip mechanism.
 
 Codex spawns subagents on explicit request — say to the user: "Spawning source-check verifiers for N claims, classified by type."
 
@@ -29,7 +29,8 @@ All 6 verifier prompts share this preamble. Spawn each verifier under your `audi
 ```
 ROLE: You are a verifier subagent. You did NOT generate the claim.
 
-ORDER OF OPERATIONS (claim-first reading produces sycophancy — fetch first):
+ORDER OF OPERATIONS (per SycEval, arXiv:2502.08177 — claim-first framing
+produces +5pp sycophancy; show source first):
   1. Fetch sources FIRST.
   2. Read fetched text.
   3. Only THEN read the candidate claim.
@@ -37,9 +38,9 @@ ORDER OF OPERATIONS (claim-first reading produces sycophancy — fetch first):
 TOOL USE — MANDATORY:
   - You MUST make ≥1 real web/fetch tool call. Empty tool_calls_made = automatic FAIL.
   - At least one tool call MUST target a domain NOT appearing in the candidate
-    claim's URLs. Same-domain-only fetch ≠ independent corroboration.
+    claim's URLs. Same-domain-only fetch ≠ independent corroboration ≠ verification.
 
-ANTI-CRITICGPT:
+ANTI-CRITICGPT (McAleese et al. 2024, arXiv:2407.00215):
   - Do NOT invent issues to seem rigorous.
   - Report only problems substantiated by a fetched verbatim quote.
 
@@ -51,39 +52,45 @@ ANTI-SYCOPHANCY:
 QUOTES:
   - Every claim "supported" or "contradicted" must include a verbatim quote.
   - Quotes will be substring-matched downstream against fetched page text.
-  - Record ≥200 chars of surrounding context (prevents cherry-picked quotation).
+  - Record ≥200 chars of surrounding context (prevents cherry-picked quotation —
+    a documented pseudoscience tactic per Hansson SEP §5.1).
 
 INSUFFICIENT_EVIDENCE:
   - Preferred over guessing — NOT penalized.
   - But requires ≥3 distinct queries documented with reason each failed.
     Otherwise auto-downgrades to "verifier_retry_needed".
 
-TIME ANNOTATION (mandatory):
-  - source_published_at: when the source was published/dated (from <meta>,
-    byline, paper date, commit date, or "unknown").
-  - fetched_at: recorded inside each tool_calls_made entry (always ≈ "now").
-  Record the date — do NOT classify "stale" / "fresh". Staleness depends on
-  the user's use case, not AI judgment.
+TIME ANNOTATION (mandatory — record the source's publication date):
+  - source_published_at: when the source itself was published / dated
+    (from <meta> tag, byline, paper publication date, commit date, or "unknown")
+  - fetched_at is mechanically recorded inside each tool_calls_made entry —
+    it always equals "approximately now" and is not user-facing in the headline.
+  RULE: record the source's date as a fact; do NOT classify "shelf life".
+  A verified fact may still be stale, but whether it matters depends on the
+  user's specific use case — only they can judge. AI classifying volatility
+  ("this is quarterly-volatile") would inject an unverifiable LLM judgment
+  into what should be a pure fact-recording step.
 
-OUTPUT: strict JSON only.
+OUTPUT: strict JSON only, per schema in §JSON Schema below.
 ```
 
 ## Verifier (a) — factual_citation
 
 ```
-INPUTS (in this order):
-  source_url_or_doi
-  expected_quote (if provided)
-  claim_text
+INPUTS (in this order — SycEval ordering):
+  source_url_or_doi: <the URL/DOI the main agent cited>
+  expected_quote: <if provided, what the main agent said the source contains>
+  claim_text: <the full claim sentence>
 
 PROCEDURE:
   1. Fetch source_url_or_doi.
-     - 404/DNS-fail → CONTRADICTED, reason="source does not resolve".
-  2. If DOI: api.crossref.org/works/{DOI} for `update-to` (retraction).
-  3. Substring-match expected_quote against fetched body. Capture ≥200 chars
+     - If 404 / DNS-fail → CONTRADICTED, reason="source does not resolve"
+       (citation fabrication; base rate 11.4–56.8% per arXiv:2603.03299).
+  2. If DOI: query api.crossref.org/works/{DOI} for `update-to` (retraction).
+  3. Substring-match expected_quote against fetched body. Fetch ≥200 chars
      surrounding context.
-  4. Quote matches but claim paraphrases beyond → PARTIALLY_VERIFIED.
-  5. Source exists, no matching quote → CONTRADICTED.
+  4. If quote matches but claim paraphrases beyond quote → PARTIALLY_VERIFIED.
+  5. If source exists but no matching quote → CONTRADICTED.
   6. NEGATIVE CONTROL: do one search for refuting evidence. Record outcome.
 
 CRITERIA APPLIED: source-existence + verbatim attribution + external
@@ -94,15 +101,18 @@ consistency (retraction).
 
 ```
 INPUTS:
-  claim_text, implied_time_window, candidate_source_url
+  claim_text: <claim with time-sensitive value>
+  implied_time_window: <today, last month, current version>
+  candidate_source_url: <if provided>
 
 PROCEDURE:
   1. Identify authoritative source class (vendor's official pricing /
      documentation / leaderboard).
   2. Fetch and record Last-Modified header + in-page date.
      - If page date older than implied_time_window → INSUFFICIENT_EVIDENCE.
-  3. CROSS-CORROBORATION: fetch a SECOND independent domain confirming same
-     value. Required, not optional.
+  3. CROSS-CORROBORATION (per arXiv:2603.03299, ≥2 independent sources →
+     88.9% accuracy): fetch a SECOND independent domain confirming same value.
+     Required, not optional.
   4. Substring-match the value, allowing format normalization.
   5. Verdict: STILL_CURRENT / DIFFERS / INSUFFICIENT_EVIDENCE.
 
@@ -111,29 +121,33 @@ CRITERIA APPLIED: source-existence + verbatim + recency + cross-corroboration.
 
 ## Verifier (c) — subjective ("X is best")
 
-A subjective claim is **not** unverifiable — it's verifiable against a *measured* community signal (named survey n≥1000, peer-reviewed benchmark, or adoption metric).
+A subjective claim is **not** unverifiable — it's verifiable against a different criterion: faithful representation of a *measured* community signal (e.g., "X is widely used" → 2024 Stack Overflow Survey, n=65,437, reports 73.6%).
 
 ```
 INPUTS:
-  claim_text, evidence_type_hint
+  claim_text: <subjective claim>
+  evidence_type_hint: <survey | benchmark | citation-graph | adoption-metric>
 
 PROCEDURE:
   1. SEARCH PRIORITY (highest fidelity first):
      a. Peer-reviewed empirical study / published benchmark
         (Papers With Code, SPEC)
-     b. Industry survey n≥10K (Stack Overflow Dev Survey, JetBrains, State of JS)
-     c. GitHub stars / package downloads
-     d. HN / Reddit (tertiary, "vocal community" caveat)
-     e. NEVER blog posts / Twitter as ground truth
-  2. Fetch highest tier. Extract headline % verbatim. Record n, methodology, date.
+     b. Methodologically disclosed industry survey with n≥10,000
+        (Stack Overflow Dev Survey, JetBrains Dev Ecosystem, State of JS)
+     c. GitHub stars / package-manager downloads
+     d. HN / Reddit upvote counts (tertiary, "vocal community" caveat)
+     e. NEVER: blog posts / Twitter as ground truth
+  2. Fetch the highest-tier source available. Extract headline % / rank
+     verbatim. Record n, methodology, date.
   3. NEGATIVE CONTROL: search for surveys / benchmarks showing the opposite.
-  4. THRESHOLDS:
-     - ≥60% on one side → consensus → VERIFIED
-     - 40–60% → mixed → PARTIALLY_VERIFIED with both numbers
+  4. THRESHOLDS (engineering judgment — calibrate against post-deployment data):
+     - ≥60% on one side → "consensus" → VERIFIED
+     - 40–60% → "mixed" → PARTIALLY_VERIFIED with both numbers
      - <40% on claimed side → CONTRADICTED
      - For benchmarks: claim must match top-3 leaderboard within task
 
-HARD RULE: never VERIFIED without n≥1000 named survey OR peer-reviewed measurement.
+HARD RULE: never VERIFIED without a named survey/benchmark with n≥1000 OR
+peer-reviewed measurement. No "consensus per HN sentiment".
 
 ESCALATION TO INSUFFICIENT_EVIDENCE: niche domain (no n≥1000 instrument exists).
 Return INSUFFICIENT_EVIDENCE — do NOT retreat to forum sentiment.
@@ -145,36 +159,40 @@ CRITERIA APPLIED: community-consensus (measured) + verbatim attribution.
 
 ```
 INPUTS:
-  claim_text
+  claim_text: <claim containing a future assertion>
 
 PROCEDURE:
-  1. Parse: who is the predictor? What's the prediction? When?
-  2. Fetch a source where the named predictor actually made the prediction.
-  3. Verify prediction text verbatim from the source.
-  4. VERIFIED form: "X predicted Y on date Z (verbatim)" — NOT "Y will happen".
-     Future-truth is not verifiable; predictor-attribution is.
-  5. No named predictor / no source → CONTRADICTED, reason="unsourced speculation".
+  1. Parse: who is the predictor? What's the prediction? When was it made?
+  2. Fetch a source where the named predictor actually made this prediction.
+  3. Verify the prediction text verbatim.
+  4. VERIFIED form: "Predictor X said on date Y that Z (verbatim quote)" —
+     NOT "Z will happen". Future-truth is not verifiable;
+     predictor-attribution is.
+  5. If no named predictor / no source → CONTRADICTED, reason="unsourced
+     speculation" (Hansson pathology #1: anonymous appeal to authority).
 
 CRITERIA APPLIED: source-existence (of utterance) + verbatim attribution +
-falsifiable attribution.
+falsifiability of attribution.
 ```
 
 ## Verifier (e) — private / user-provided
 
 ```
 INPUTS:
-  user_supplied_context (verbatim user-provided, NOT externally fetchable)
-  claim_text
+  user_supplied_context: <verbatim user-provided text, NOT externally fetchable>
+  claim_text: <claim drawing on this private context>
 
 PROCEDURE:
   1. NO external tool calls (data is private). tool_calls_made may be empty
      for THIS verifier type only.
-  2. Decompose claim into atomic facts.
+  2. Decompose claim into atomic facts (FActScore-style, Min et al. 2023,
+     arXiv:2305.14251).
   3. Substring/entailment-match each atomic fact against user_supplied_context only.
   4. faithfulness = supported_atoms / total_atoms.
 
-VERDICT LABEL: GROUNDED 🔒 / UNGROUNDED 🔓 / PARTIALLY_GROUNDED — NOT VERIFIED
-(no external truth check; verifier checks faithfulness to provided context only).
+VERDICT LABEL: GROUNDED 🔒 / UNGROUNDED 🔓 / PARTIALLY_GROUNDED — NOT
+"VERIFIED" (no external truth check; verifier checks faithfulness to provided
+context only).
 
 CRITERIA APPLIED: faithful-representation-of-provided-context only.
 ```
@@ -183,9 +201,9 @@ CRITERIA APPLIED: faithful-representation-of-provided-context only.
 
 ```
 INPUTS:
-  cited_paper_id (DOI or arXiv ID)
-  expected_finding_quote (if provided)
-  claim_text
+  cited_paper_id: <DOI or arXiv ID, or full citation>
+  expected_finding_quote: <if provided>
+  claim_text: <claim>
 
 PROCEDURE:
   1. METADATA: Semantic Scholar /graph/v1/paper/DOI:{DOI}?fields=
@@ -193,26 +211,25 @@ PROCEDURE:
   2. RETRACTION CHECK (mandatory, both for cross-validation):
      - Crossref: api.crossref.org/works/{DOI}, `update-to` array
      - OpenAlex: api.openalex.org/works/doi:{DOI}, `is_retracted`
-     - Cross-check both — OpenAlex `is_retracted` alone has documented
-       misclassifications; single-source unsafe.
+     - Cross-check both — OpenAlex `is_retracted` had ~2300 misclassifications
+       Dec 2023 / Mar 2024 (arXiv:2403.13339)
      - If retracted → CONTRADICTED with retraction notice quote.
   3. FETCH PDF/HTML; substring-match expected_finding_quote with ≥200 chars
      surrounding context.
   4. PREPRINT-ONLY (no peer-reviewed version): PARTIALLY_VERIFIED + flag.
-  5. arXiv version-churn: OAI-PMH arXivRaw. ≥4 versions of a non-textbook claim
-     → yellow flag.
+  5. arXiv version-churn: OAI-PMH arXivRaw. ≥4 versions = Hansson #6 yellow flag.
   6. NEGATIVE CONTROL: search Semantic Scholar for citing papers with
      "contradict|refute|fail to replicate" in title/abstract.
   7. HANSSON PATHOLOGY CHECKS:
      #1 (authority): is cited source primary or secondary? Check Semantic
         Scholar references graph.
      #2 (unrepeatable): replication-tagged citations? PubPeer threads if accessible.
-     #4 (unwillingness to test): no replications after 5+ years for testable claim?
+     #4 (unwillingness to test): no replication after 5+ years for testable claim?
      #5 (disregard refuting): retraction + negative-control results.
      #6 (built-in subterfuge): version-churn flag.
-  8. OUT_OF_SCOPE_PATHOLOGIES: #3 (handpicked examples) and #7 (abandoned
-     explanations) are NOT mechanizable — MUST be listed in
-     `out_of_scope_pathologies` field so silence isn't mistaken for clearance.
+  8. OUT_OF_SCOPE_PATHOLOGIES: #3 ("handpicked examples") + #7
+     ("explanations abandoned") are NOT mechanizable at minutes scale by
+     an AI verifier. MUST be explicitly listed in `out_of_scope_pathologies`.
 
 CRITERIA APPLIED: source-existence + verbatim + external consistency
 (retraction) + cross-corroboration + Hansson #1, #2, #4, #5, #6.
@@ -220,18 +237,18 @@ CRITERIA APPLIED: source-existence + verbatim + external consistency
 
 ## Hard rules — do not violate
 
-1. **`tool_calls_made` non-empty AND ≥1 call to domain NOT in claim's URLs.** Same-domain-only fetch = auto-FAIL.
-2. **`evidence_quotes` verbatim + substring-match fetched page downstream.** Non-match = auto-FAIL. **LOAD-BEARING ANTI-HALLUCINATION CHECK.**
-3. **≥200 chars surrounding context recorded** for each evidence quote. Prevents cherry-picked out-of-context quotation.
-4. **Source-before-claim ordering** in verifier prompt. Claim-first → sycophancy.
-5. **Negative-control search required** for verifier types (c) + (f). Output includes `negative_control_attempted`.
-6. **INSUFFICIENT_EVIDENCE requires ≥3 documented queries** with reason each failed; else auto-downgrade to `verifier_retry_needed`.
-7. **Retraction check (Crossref + OpenAlex, both)** mandatory for any DOI-cited claim. Single-source unsafe.
+1. **`tool_calls_made` MUST be non-empty AND ≥1 call must target a domain NOT in claim's URLs.** Same-domain-only fetch = automatic FAIL.
+2. **`evidence_quotes` MUST be verbatim AND substring-match the fetched page text downstream.** Non-matching → auto-FAIL. **LOAD-BEARING ANTI-HALLUCINATION CHECK.**
+3. **≥200 chars surrounding context recorded** for each evidence quote (Hansson SEP §5.1: cherry-picked quotation is a documented pseudoscience tactic).
+4. **Source-before-claim ordering** in verifier prompt. SycEval: claim-first = +5pp sycophancy.
+5. **Negative-control search required** for verifier types (c) subjective + (f) scientific. Output includes `negative_control_attempted: {performed, queries, findings}`.
+6. **INSUFFICIENT_EVIDENCE requires ≥3 distinct queries documented** with reason each failed; otherwise auto-downgrade to `verifier_retry_needed`.
+7. **Retraction check (Crossref + OpenAlex, both)** mandatory for any DOI-cited claim.
 8. **Verbatim quote required** for every VERIFIED / CONTRADICTED / PARTIALLY_VERIFIED verdict.
 9. **Output must be valid JSON** per schema.
 10. **Citations resolving to "source does not resolve" → REMOVED**, not substituted.
-11. **`source_published_at` recorded for every non-private verdict** (page metadata / byline / DOI metadata / commit date; "unknown" only if genuinely absent). Verifier does NOT classify volatility — record the date, user judges shelf-life.
-12. **`verdict` MUST be exactly one of the enum values** — factual: `VERIFIED` / `CONTRADICTED` / `PARTIALLY_VERIFIED` / `INSUFFICIENT_EVIDENCE`; private: `GROUNDED` / `UNGROUNDED` / `PARTIALLY_GROUNDED`. No self-invented labels. Nuance → `caveats[]`, not the verdict field.
+11. **`source_published_at` MUST be recorded for every non-private verdict** (from page metadata / byline / DOI metadata / commit date; "unknown" only if genuinely absent). `fetched_at` is mechanically recorded in `tool_calls_made`. Verifier does NOT classify volatility — recording dates is a fact, classifying "shelf life" is an LLM judgment the user should make themselves.
+12. **`verdict` MUST be exactly one of the enum values** — factual types: `VERIFIED` / `CONTRADICTED` / `PARTIALLY_VERIFIED` / `INSUFFICIENT_EVIDENCE`; private type: `GROUNDED` / `UNGROUNDED` / `PARTIALLY_GROUNDED`. No self-invented labels (e.g., `verified_with_caveat`, `MISLEADING_WITHOUT_CONTEXT`) — non-enum verdicts silently fall through downstream consumers (source-check-max combination table, headline UX mapping). Any nuance / qualification → `caveats[]`, not the verdict field.
 
 ## JSON Schema
 
@@ -266,7 +283,7 @@ CRITERIA APPLIED: source-existence + verbatim + external consistency
 
 ## Headline UX
 
-| Verdict | Format |
+| Verdict | Headline format |
 |---|---|
 | VERIFIED | `✅ verified · <1 sentence, ≤140 chars>` |
 | PARTIALLY_VERIFIED | `⚠️ partial · passed N/M — failed: <list>` |
@@ -275,7 +292,7 @@ CRITERIA APPLIED: source-existence + verbatim + external consistency
 | GROUNDED | `🔒 grounded in your context · <1 sentence>` |
 | UNGROUNDED / PARTIALLY_GROUNDED | `🔓 not grounded in your context · <missing atoms>` |
 
-**Timing format**: Every non-private headline must end with `· src dated: <source_published_at>`. Do NOT show fetched-at. Do NOT classify the source as "stale" / "fresh" — that's the user's call.
+**Timing — show the source's date, let the user judge staleness.** Every non-private headline must end with `· src dated: <source_published_at>`. We do NOT show the fetched-at time (it's always ≈ "now" and adds no signal), and we do NOT classify the source as "stale" or "fresh" (that depends on the user's use case — a 2019 numerical-methods result is fresh; a 2019 LLM benchmark is ancient). User sees the source's date, decides themselves.
 
 ```
 Example:
@@ -284,18 +301,20 @@ Example:
 🔵 insufficient · no n≥1000 survey found for "Zig vs Rust embedded"
 ```
 
-For `private` claims, omit the source date.
+For `private` (GROUNDED / UNGROUNDED) claims, omit the source date — dates come from user's own context.
 
-Summary line below the user-facing answer:
+Below user-facing answer:
 ```
 [source-check: N claims (✅<V>, ⚠️<P>, ❌<C>, 🔵<U>, 🔒<G>, 🔓<UG>); types: <count>; oldest source: <date>; warnings: <list or none>]
 ```
+
+The `oldest source` field lets the user spot at a glance whether anything rests on aged data — without the skill deciding for them what "aged" means.
 
 Audit appendix (collapsed): full per-verifier JSON outputs, tool-call log, evidence + context.
 
 ## Optional custom agent
 
-Define a dedicated verifier at `~/.codex/agents/source-verifier.toml`. **Cross-family setup highly recommended for high-stakes** — pin a different model family than the drafter via the `model` field.
+Define a dedicated verifier at `~/.codex/agents/source-verifier.toml`. **Cross-family setup highly recommended for high-stakes** — pin a different model family than the drafter via the `model` field. Cross-family reduces preference leakage from 28-37% to ±1.5% (Preference Leakage, ICLR 2026).
 
 ```toml
 name = "source_verifier"
@@ -310,18 +329,20 @@ criteria. MUST use web tools. Return strict JSON with verbatim quotes,
 """
 ```
 
-## Limits / Caveats
+## Limits / Caveats (honest)
 
-- **Subjective consensus thresholds (60%/40-60%/<40%) are engineering judgment.** Tune against post-deployment data.
-- **OpenAlex `is_retracted` is known to misclassify.** Mandatory Crossref cross-check is the mitigation.
-- **Hansson #3 + #7 NOT mechanizable** at minutes scale. Explicit `out_of_scope_pathologies` field prevents silence-as-clearance.
-- **Same-family drafter + verifier may share biases.** Cross-family setup recommended for high-stakes.
-- **Niche subjective claims** (no n≥1000 survey) → INSUFFICIENT_EVIDENCE. Do NOT retreat to forum sentiment.
+- **Subjective consensus thresholds (60%/40-60%/<40%) are engineering judgment**, not literature-supported. Calibrate against post-deployment data.
+- **OpenAlex `is_retracted` had ~2300 misclassifications** late 2023 / early 2024 (arXiv:2403.13339). Mandatory Crossref cross-check is the mitigation.
+- **Hansson #3 + #7 are NOT mechanizable** at minutes scale. Explicit `out_of_scope_pathologies` field prevents silence-as-clearance.
+- **Same-family drafter + verifier may share biases** (SycEval 78.5% sycophancy persistence). Cross-family verifier setup recommended for high-stakes.
+- **Niche subjective claims** (no n≥1000 survey) → INSUFFICIENT_EVIDENCE is honest verdict.
+- **Future predictions never VERIFIED as "Y will happen"** — only as "X predicted Y on date Z".
+- **Private data uses GROUNDED / UNGROUNDED**, not VERIFIED.
 - **PubPeer has no public keyless JSON API**; Cochrane API is auth-gated. Both partially limit Hansson mechanization.
-- **Does NOT catch subtle paraphrase distortions** where source mostly matches but qualifier dropped — that's `audit-loop`'s job.
+- **Does NOT catch subtle paraphrase distortions** where source mostly matches but qualifier dropped (see `audit-loop` synthesis-from-fetched-source structural limit).
 
 ## Handshake with other skills
 
-- **`audit-loop`**: algorithmic / mechanism / correctness reasoning. Orthogonal — both can fire on the same output.
-- **`source-check-max`**: dual-verifier variant for high-stakes factual_citation claims (legal / medical / financial).
+- **`audit-loop`**: algorithmic / mechanism / correctness reasoning. Orthogonal.
+- **`source-check-max`**: experimental dual-verifier; not yet validated. Use source-check for production.
 - **User's `red-team-process` memory**: heavier PROVENANCE BLOCK for quantitative external-fact high-stakes single answers.
