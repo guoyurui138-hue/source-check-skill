@@ -8,14 +8,6 @@ when_to_use: Auto-trigger when your draft answer contains any of an explicit cit
 
 External claims are verified by **multi-criteria scientific verification** routed by claim type. Every claim gets verified — there is no "this is unverifiable, skip" pathway. Single-criterion demarcation (e.g., Popper falsifiability alone) is known to fail (Hansson SEP §4; Pigliucci & Boudry 2013); the current consensus is multi-criteria assessment with criteria appropriate to the claim's type.
 
-## Why this skill exists
-
-**Failure 1: Citation fabrication.** Empirically severe: GPT-3.5 ~55%, GPT-4 ~18% fabrication rate (Walters & Wilder 2023); 11.4–56.8% across 10 commercially deployed LLMs over 69,557 citation instances (arXiv:2603.03299). Agent reaches a conclusion, then invents plausible-looking sources to support it. The fabricated citations are rhetorically effective because they pattern like real ones.
-
-**Failure 2: Stale-info silent delivery.** Agent answers time-sensitive questions from training memory instead of fetching, with no signal to the user that the answer is recall-based vs verified.
-
-Both share the same root: no live external grounding. This skill enforces grounding with type-appropriate criteria, refusing to skip claims as "unverifiable" (which would be Hansson pathology #4 + #6 dressed as honesty).
-
 ## Step 0 — Classify claim type (route, do NOT skip)
 
 For each external claim in the draft, identify its type. Every type routes to a specific verifier prompt below. No skip mechanism — claims that **appear** unverifiable (subjective, future, private) get **different criteria**, not skip.
@@ -274,7 +266,7 @@ consistency (retraction) + cross-corroboration + Hansson #1, #2, #4, #5, #6.
 9. **Output must be valid JSON** per schema. Malformed → failed verification.
 10. **Citations whose verifier returns "source does not resolve" → REMOVED from output**, not silently substituted with a "similar real one" (that's still fabrication, just dressed).
 11. **`source_published_at` MUST be recorded for every non-private verdict** (extracted from page metadata / byline / DOI metadata / commit date; "unknown" only if genuinely absent). `fetched_at` is mechanically recorded in `tool_calls_made`. The verifier does NOT classify volatility — recording dates is a fact, classifying "shelf life" is an LLM judgment the user should make themselves.
-12. **`verdict` MUST be exactly one of the enum values** — factual types: `VERIFIED` / `CONTRADICTED` / `PARTIALLY_VERIFIED` / `INSUFFICIENT_EVIDENCE`; private type: `GROUNDED` / `UNGROUNDED` / `PARTIALLY_GROUNDED`. No self-invented labels (e.g., `verified_with_caveat`, `MISLEADING_WITHOUT_CONTEXT`) — non-enum verdicts silently fall through downstream consumers (source-check-max combination table, headline UX mapping). Any nuance / qualification → `caveats[]`, not the verdict field. Rule #9 ("valid JSON per schema") was observed insufficient: verifiers interpreted it as parse-validity only, not enum-validity (n=3/13 deviations in v8 single-verifier test).
+12. **`verdict` MUST be exactly one of the enum values** — factual types: `VERIFIED` / `CONTRADICTED` / `PARTIALLY_VERIFIED` / `INSUFFICIENT_EVIDENCE`; private type: `GROUNDED` / `UNGROUNDED` / `PARTIALLY_GROUNDED`. No self-invented labels (e.g., `verified_with_caveat`, `MISLEADING_WITHOUT_CONTEXT`) — non-enum verdicts silently fall through downstream consumers (source-check-max combination table, headline UX mapping). Any nuance / qualification → `caveats[]`, not the verdict field.
 
 ## JSON Schema
 
