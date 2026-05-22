@@ -77,6 +77,32 @@ TIME ANNOTATION (mandatory — record the source's publication date):
 OUTPUT: strict JSON only, per schema in §JSON Schema below.
 ```
 
+## Tool routing — URL pattern → preferred fetch tier
+
+For any URL/DOI in a candidate claim, pick the highest tier that resolves it:
+
+**Tier 1 — Source-specific structured API (preferred):**
+- arXiv ID / URL → `export.arxiv.org/api/query?id_list={ID}` (metadata) or `arxiv.org/abs/{ID}` (full HTML)
+- DOI → `api.crossref.org/works/{DOI}` AND `api.openalex.org/works/doi:{DOI}` (cross-check for retraction; both required per hard rule #7)
+- Academic paper metadata → `api.semanticscholar.org/graph/v1/paper/{DOI|arXiv:ID}?fields=title,year,venue,citationCount,referenceCount`
+- GitHub URLs (repos / files / issues / PRs) → `gh api repos/{owner}/{repo}/...`
+- Wikipedia → `en.wikipedia.org/api/rest_v1/page/summary/{Title}` (summary) or `/page/html/{Title}` (full HTML)
+- PubMed (`pubmed.ncbi.nlm.nih.gov/{PMID}`) → NCBI E-utilities (`eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi`)
+- npm / PyPI → `registry.npmjs.org/{pkg}` / `pypi.org/pypi/{pkg}/json`
+- SEC filings → `data.sec.gov` / EDGAR API
+- Stack Overflow → `api.stackexchange.com/2.3/questions/{ID}`
+- Hacker News → `hacker-news.firebaseio.com/v0/item/{ID}.json`
+
+**Tier 2 — Chrome MCP:** for JS-heavy SPAs (e.g., openai.com pricing pages, Notion/Linear/Figma docs), sites with anti-bot UA blocking, or paywalled academic content already logged-in via the user's browser session.
+
+**Tier 3 — WebFetch:** for static public pages without a structured API (most news sites, vendor docs, personal blogs).
+
+**Tier 4 — `curl`:** when WebFetch errors out but the page is genuinely fetchable (rare; usually means UA spoofing or specific headers needed).
+
+**WebSearch:** use for *finding* a source you don't have a URL for yet (the negative-control searches, discovering refuting evidence). NOT for verifying a known URL — known URL → fetch it directly.
+
+**ANTI-PATTERN — `WebFetch` with `summary=true`** (LLM-summarized fetch): drops verbatim words, breaking the load-bearing substring-match check downstream. Always fetch raw text. If a tool only exposes summary mode, switch tier (Chrome MCP / curl).
+
 ## Verifier (a) — factual_citation
 
 ```

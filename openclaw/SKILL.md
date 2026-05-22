@@ -81,6 +81,30 @@ TIME ANNOTATION (mandatory — record the source's publication date):
 OUTPUT: strict JSON only.
 ```
 
+## Tool routing — URL pattern → preferred tier
+
+Pick highest tier that resolves the URL:
+
+**T1 source-specific API (preferred):**
+- arXiv → `export.arxiv.org/api/query?id_list={ID}` / `arxiv.org/abs/{ID}`
+- DOI → `api.crossref.org/works/{DOI}` + `api.openalex.org/works/doi:{DOI}` (cross-check, per hard rule #7)
+- Paper metadata → `api.semanticscholar.org/graph/v1/paper/{DOI|arXiv:ID}`
+- GitHub → `gh api repos/{owner}/{repo}/...`
+- Wikipedia → `en.wikipedia.org/api/rest_v1/page/summary/{Title}`
+- PubMed → NCBI E-utilities (`eutils.ncbi.nlm.nih.gov`)
+- npm / PyPI → `registry.npmjs.org/{pkg}` / `pypi.org/pypi/{pkg}/json`
+- SEC → `data.sec.gov` / EDGAR
+- Stack Overflow → `api.stackexchange.com/2.3/questions/{ID}`
+- HN → `hacker-news.firebaseio.com/v0/item/{ID}.json`
+
+**T2 Chrome MCP** — JS-heavy SPAs, anti-bot UA blocking, logged-in paywall content.
+**T3 WebFetch** — static public pages no API.
+**T4 `curl`** — WebFetch errored but page fetchable.
+
+**WebSearch** — for finding NEW sources (no URL yet) / negative-control. NOT for verifying known URLs (those → fetch).
+
+**ANTI-PATTERN: `WebFetch` with `summary=true`** — LLM summary drops verbatim words, breaks substring-match check. Always fetch raw. Tool only does summary → switch tier (Chrome MCP / curl).
+
 ## Verifier (a) — factual_citation
 
 ```
