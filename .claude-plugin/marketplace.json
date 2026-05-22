@@ -20,6 +20,20 @@
       "strict": false,
       "homepage": "https://github.com/Mercer8964/source-check-skill",
       "license": "MIT"
+    },
+    {
+      "name": "source-check-max",
+      "description": "High-stakes dual-verifier extension to source-check. For each factual citation, spawns TWO independent verifiers — V1 fetches the URL the agent cited; V2 receives only author+year+title and must independently rediscover the source. Catches wrong-URL citations and fabricated papers. Use for legal / medical / financial / regulatory citations. REQUIRES source-check plugin installed alongside.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Mercer8964",
+        "url": "https://github.com/Mercer8964"
+      },
+      "source": "./plugins/source-check-max",
+      "category": "verification",
+      "strict": false,
+      "homepage": "https://github.com/Mercer8964/source-check-skill",
+      "license": "MIT"
     }
   ]
 }

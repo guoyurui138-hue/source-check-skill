@@ -1,0 +1,11 @@
+{
+  "name": "source-check-max",
+  "version": "1.0.0",
+  "description": "High-stakes dual-verifier extension to source-check. For each factual citation, spawns TWO independent verifiers — V1 fetches the URL the agent cited; V2 receives only author+year+title and must independently rediscover the source (with metadata gate). Outputs combined via an 8-state headline table. Use for legal / medical / financial / regulatory citations where fabrication has material cost. REQUIRES source-check plugin installed alongside.",
+  "author": {
+    "name": "Mercer8964",
+    "url": "https://github.com/Mercer8964"
+  },
+  "repository": "https://github.com/Mercer8964/source-check-skill",
+  "license": "MIT"
+}
